@@ -10,6 +10,8 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.jsoup.select.Elements;
+import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
@@ -68,7 +70,9 @@ public class JedisIndex {
 	 */
 	public Set<String> getURLs(String term) {
         // FILL THIS IN!
-		return null;
+		String key = urlSetKey(term);
+		Set<String> urls = jedis.smembers(key);
+		return urls;
 	}
 
     /**
@@ -79,7 +83,13 @@ public class JedisIndex {
 	 */
 	public Map<String, Integer> getCounts(String term) {
         // FILL THIS IN!
-		return null;
+		Map<String, Integer> map = new HashMap<String, Integer>();
+		Set<String> urls = getURLs(term);
+		for (String url : urls) {
+			Integer count = getCount(url, term);
+			map.put(url, count);
+		}
+		return map;
 	}
 
     /**
@@ -91,7 +101,9 @@ public class JedisIndex {
 	 */
 	public Integer getCount(String url, String term) {
         // FILL THIS IN!
-		return null;
+		String tcKey = termCounterKey(url);
+		String value = jedis.hget(tcKey, term);
+		return Integer.parseInt(value);
 	}
 
 
@@ -103,6 +115,20 @@ public class JedisIndex {
 	 */
 	public void indexPage(String url, Elements paragraphs) {
         // FILL THIS IN!
+        TermCounter tc = new TermCounter(url);
+		tc.processElements(paragraphs);
+
+		String tcKey = termCounterKey(url);
+
+		Transaction t = jedis.multi();
+
+        for (String term : tc.keySet()) {
+        	t.hset(tcKey, term, Integer.toString(tc.get(term)));
+        	String setKey = urlSetKey(term);
+			t.sadd(setKey, url);
+        }
+
+        t.exec();
 	}
 
 	/**
